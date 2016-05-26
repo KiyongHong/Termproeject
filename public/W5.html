@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+ <html>
+   <head>
+     <title>Place Autocomplete</title>
+     <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+     <meta charset="utf-8">
+     <style>
+       html, body {
+         height: 100%;
+         margin: 0;
+         padding: 0;
+       }
+       #map {
+         height: 100%;
+       }
+ .controls {
+   margin-top: 10px;
+   border: 1px solid transparent;
+   border-radius: 2px 0 0 2px;
+   box-sizing: border-box;
+   -moz-box-sizing: border-box;
+   height: 32px;
+   outline: none;
+   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+ }
+ #right-panel {
+         float: right;
+         width: 19%;
+         height: 100%;
+       }
+ #right-panel {
+   font-family: 'Roboto','sans-serif';
+   line-height: 30px;
+   padding-left: 10px;
+ }
+ #right-panel select, #right-panel input {
+   font-size: 15px;
+ }
+ #right-panel select {
+   width: 100%;
+ }
+ #right-panel i {
+   font-size: 12px;
+ }
+ .panel {
+   height: 100%;
+   overflow: auto;
+ }
+ #origin-input,
+ #waypts1-input,
+ #waypts2-input,
+ #waypts3-input,
+ #waypts4-input,
+ #waypts5-input,
+ #destination-input {
+   background-color: #fff;
+   font-family: Roboto;
+   font-size: 15px;
+   font-weight: 300;
+   margin-left: 12px;
+   padding: 0 11px 0 13px;
+   text-overflow: ellipsis;
+   width: 200px;
+ }
+ #origin-input:focus,
+ #waypts1-input:focus,
+ #waypts2-input:focus,
+ #waypts3-input:focus,
+ #waypts4-input:focus,
+ #waypts5-input:focus,
+ #destination-input:focus {
+   border-color: #4d90fe;
+ }
+ #mode-selector {
+   color: #fff;
+   background-color: #4d90fe;
+   margin-left: 12px;
+   padding: 5px 11px 0px 11px;
+ }
+ #mode-selector label {
+   font-family: Roboto;
+   font-size: 13px;
+   font-weight: 300;
+ }
+     </style>
+   </head>
+   <body>
+     <div id="right-panel">
+       <p>Total Distance: <span id="total"></span></p>
+     </div>
+
+     <input id="origin-input" class="controls" type="text"
+         placeholder="Enter an origin location">
+     <input id="waypts1-input" class="controls" type="text"
+         placeholder="Enter a waypoint1 location">
+     <input id="waypts2-input" class="controls" type="text"
+         placeholder="Enter a waypoint2 location">
+     <input id="waypts3-input" class="controls" type="text"
+         placeholder="Enter a waypoint3 location">
+     <input id="waypts4-input" class="controls" type="text"
+         placeholder="Enter a waypoint4 location">
+     <input id="waypts5-input" class="controls" type="text"
+         placeholder="Enter a waypoint5 location">
+     <input id="destination-input" class="controls" type="text"
+         placeholder="Enter a destination location">
+
+     <div id="mode-selector" class="controls">
+       <input type="radio" name="type" id="changemode-walking">
+       <label for="changemode-walking">Walking</label>
+
+       <input type="radio" name="type" id="changemode-transit">
+       <label for="changemode-transit">Transit</label>
+
+       <input type="radio" name="type" id="changemode-driving" checked="checked">
+       <label for="changemode-driving">Driving</label>
+     </div>
+
+     <div id="map"></div>
+
+     <script>
+ function initMap() {
+   var origin_place_id = null;
+   var waypts1_place_id = null;
+   var waypts2_place_id = null;
+   var waypts3_place_id = null;
+   var waypts4_place_id = null;
+   var waypts5_place_id = null;
+   var destination_place_id = null;
+   var travel_mode = google.maps.TravelMode.DRIVING;
+   var map = new google.maps.Map(document.getElementById('map'), {
+     mapTypeControl: false,
+     center: {lat: 41.893312, lng: 12.482775},
+     zoom: 13
+   });
+   var directionsService = new google.maps.DirectionsService;
+   var directionsDisplay = new google.maps.DirectionsRenderer({
+     draggable:true,
+     map: map,
+     panel: document.getElementById('right-panel')
+   });
+
+   directionsDisplay.addListener('directions_changed', function() {
+     computeTotalDistance(directionsDisplay.getDirections());
+   });
+   route(origin_place_id, destination_place_id, travel_mode,
+         directionsService, directionsDisplay);
+
+   var origin_input = document.getElementById('origin-input');
+   var waypts1_input = document.getElementById('waypts1-input');
+   var waypts2_input = document.getElementById('waypts2-input');
+   var waypts3_input = document.getElementById('waypts3-input');
+   var waypts4_input = document.getElementById('waypts4-input');
+   var waypts5_input = document.getElementById('waypts5-input');
+   var destination_input = document.getElementById('destination-input');
+   var modes = document.getElementById('mode-selector');
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(origin_input);
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(waypts1_input);
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(waypts2_input);
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(waypts3_input);
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(waypts4_input);
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(waypts5_input);
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(destination_input);
+   map.controls[google.maps.ControlPosition.TOP_LEFT].push(modes);
+   var origin_autocomplete = new google.maps.places.Autocomplete(origin_input);
+   origin_autocomplete.bindTo('bounds', map);
+   var waypts1_autocomplete = new google.maps.places.Autocomplete(waypts1_input);
+   waypts1_autocomplete.bindTo('bounds', map);
+   var waypts2_autocomplete = new google.maps.places.Autocomplete(waypts2_input);
+   waypts2_autocomplete.bindTo('bounds', map);
+   var waypts3_autocomplete = new google.maps.places.Autocomplete(waypts3_input);
+   waypts3_autocomplete.bindTo('bounds', map);
+   var waypts4_autocomplete = new google.maps.places.Autocomplete(waypts4_input);
+   waypts4_autocomplete.bindTo('bounds', map);
+   var waypts5_autocomplete = new google.maps.places.Autocomplete(waypts5_input);
+   waypts5_autocomplete.bindTo('bounds', map);
+   var destination_autocomplete = new google.maps.places.Autocomplete(destination_input);
+   destination_autocomplete.bindTo('bounds', map);
+   // Sets a listener on a radio button to change the filter type on Places
+   // Autocomplete.
+   function setupClickListener(id, mode) {
+     var radioButton = document.getElementById(id);
+     radioButton.addEventListener('click', function() {
+       travel_mode = mode;
+     });
+   }
+   setupClickListener('changemode-driving', google.maps.TravelMode.DRIVING);
+   setupClickListener('changemode-walking', google.maps.TravelMode.WALKING);
+   setupClickListener('changemode-transit', google.maps.TravelMode.TRANSIT);
+   function expandViewportToFitPlace(map, place) {
+     if (place.geometry.viewport) {
+       map.fitBounds(place.geometry.viewport);
+     } else {
+       map.setCenter(place.geometry.location);
+       map.setZoom(17);
+     }
+   }
+   origin_autocomplete.addListener('place_changed', function() {
+     var place = origin_autocomplete.getPlace();
+     if (!place.geometry) {
+       window.alert("Autocomplete's returned place contains no geometry");
+       return;
+     }
+     expandViewportToFitPlace(map, place);
+     // If the place has a geometry, store its place ID and route if we have
+     // the other place ID
+     origin_place_id = place.place_id;
+     route(origin_place_id, destination_place_id, travel_mode,
+           directionsService, directionsDisplay);
+   });
+   waypts1_autocomplete.addListener('place_changed', function() {
+     var place = waypts1_autocomplete.getPlace();
+     if (!place.geometry) {
+       window.alert("Autocomplete's returned place contains no geometry");
+       return;
+     }
+     expandViewportToFitPlace(map, place);
+     // If the place has a geometry, store its place ID and route if we have
+     // the other place ID
+     waypts1_place_id = place.place_id;
+     route(origin_place_id, destination_place_id, travel_mode,
+           directionsService, directionsDisplay);
+   });
+   waypts2_autocomplete.addListener('place_changed', function() {
+     var place = waypts2_autocomplete.getPlace();
+     if (!place.geometry) {
+       window.alert("Autocomplete's returned place contains no geometry");
+       return;
+     }
+     expandViewportToFitPlace(map, place);
+     // If the place has a geometry, store its place ID and route if we have
+     // the other place ID
+     waypts2_place_id = place.place_id;
+     route(origin_place_id, destination_place_id, travel_mode,
+           directionsService, directionsDisplay);
+   });
+   waypts3_autocomplete.addListener('place_changed', function() {
+     var place = waypts3_autocomplete.getPlace();
+     if (!place.geometry) {
+       window.alert("Autocomplete's returned place contains no geometry");
+       return;
+     }
+     expandViewportToFitPlace(map, place);
+     // If the place has a geometry, store its place ID and route if we have
+     // the other place ID
+     waypts3_place_id = place.place_id;
+     route(origin_place_id, destination_place_id, travel_mode,
+           directionsService, directionsDisplay);
+   });
+   waypts4_autocomplete.addListener('place_changed', function() {
+     var place = waypts4_autocomplete.getPlace();
+     if (!place.geometry) {
+       window.alert("Autocomplete's returned place contains no geometry");
+       return;
+     }
+     expandViewportToFitPlace(map, place);
+     // If the place has a geometry, store its place ID and route if we have
+     // the other place ID
+     waypts4_place_id = place.place_id;
+     route(origin_place_id, destination_place_id, travel_mode,
+           directionsService, directionsDisplay);
+   });
+   waypts5_autocomplete.addListener('place_changed', function() {
+     var place = waypts5_autocomplete.getPlace();
+     if (!place.geometry) {
+       window.alert("Autocomplete's returned place contains no geometry");
+       return;
+     }
+     expandViewportToFitPlace(map, place);
+     // If the place has a geometry, store its place ID and route if we have
+     // the other place ID
+     waypts5_place_id = place.place_id;
+     route(origin_place_id, destination_place_id, travel_mode,
+           directionsService, directionsDisplay);
+   });
+   destination_autocomplete.addListener('place_changed', function() {
+     var place = destination_autocomplete.getPlace();
+     if (!place.geometry) {
+       window.alert("Autocomplete's returned place contains no geometry");
+       return;
+     }
+     expandViewportToFitPlace(map, place);
+     // If the place has a geometry, store its place ID and route if we have
+     // the other place ID
+     destination_place_id = place.place_id;
+     route(origin_place_id, destination_place_id, travel_mode,
+           directionsService, directionsDisplay);
+   });
+   function route(origin_place_id, destination_place_id, travel_mode,
+                  directionsService, directionsDisplay) {
+     var waypts = [];
+     waypts.push({
+       location: {'placeId':waypts1_place_id},
+       stopover:true
+     });
+     waypts.push({
+       location: {'placeId':waypts2_place_id},
+       stopover:true
+     });
+     waypts.push({
+       location: {'placeId':waypts3_place_id},
+       stopover:true
+     });
+     waypts.push({
+       location: {'placeId':waypts4_place_id},
+       stopover:true
+     });
+     waypts.push({
+       location: {'placeId':waypts5_place_id},
+       stopover:true
+     });
+     if (!origin_place_id || !destination_place_id) {
+       return;
+     }
+     directionsService.route({
+       origin: {'placeId': origin_place_id},
+       destination: {'placeId': destination_place_id},
+       waypoints: waypts,
+       travelMode: travel_mode
+     }, function(response, status) {
+       if (status === google.maps.DirectionsStatus.OK) {
+         directionsDisplay.setDirections(response);
+       } else {
+         window.alert('Directions request failed due to ' + status);
+       }
+     });
+   }
+ }
+ function computeTotalDistance(result) {
+   var total = 0;
+   var myroute = result.routes[0];
+   for (var i = 0; i < myroute.legs.length; i++) {
+     total += myroute.legs[i].distance.value;
+   }
+   total = total / 1000;
+   document.getElementById('total').innerHTML = total + ' km';
+ }
+     </script>
+     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC-3YWvkug9goSMJ3W4NSyeOS9Er4kBcKg&signed_in=true&libraries=places&callback=initMap"async defer></script>
+   </body>
+ </html>
+
